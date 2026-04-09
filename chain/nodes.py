@@ -15,6 +15,7 @@ Sections:
 
 import json
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -22,6 +23,7 @@ from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.errors import NodeInterrupt
+from langgraph.types import interrupt
 from trustcall import create_extractor
 
 from chain.state import AgentState
@@ -71,16 +73,9 @@ class QueryClassification(BaseModel):
     )
 
 
-class AddressComponents(BaseModel):
-    street:   str | None = Field(default=None, description="Street name and house number")
-    postcode: str | None = Field(default=None, description="5-digit Berlin postcode (starts with 1)")
-    district: str | None = Field(default=None, description="Berlin district/Bezirk name, if mentioned")
-
-
 # --- Extractor caches (one instance per LLM provider) ---
 
 _classifier_cache: dict[str, Any] = {}
-_addr_extractor_cache: dict[str, Any] = {}
 
 
 def _get_classifier(provider: str):
@@ -91,16 +86,6 @@ def _get_classifier(provider: str):
             tool_choice="QueryClassification",
         )
     return _classifier_cache[provider]
-
-
-def _get_address_extractor(provider: str):
-    if provider not in _addr_extractor_cache:
-        _addr_extractor_cache[provider] = create_extractor(
-            get_llm(provider),
-            tools=[AddressComponents],
-            tool_choice="AddressComponents",
-        )
-    return _addr_extractor_cache[provider]
 
 
 # Tool dispatcher for synthesize_response "direct" mode
@@ -233,36 +218,24 @@ def resolve_address(state: AgentState) -> dict:
     """
     Geocode the address and look up its BauNVO zone and plot area via GDI Berlin APIs.
 
+    Uses interrupt() (not NodeInterrupt) so the node pauses in-place and the
+    user's response is returned directly — no re-run from scratch on resume.
+
     Flow:
-      1. trustcall AddressComponents — detect missing postcode before any API call.
-      2. lookup_zone_for_address — Photon geocode + B-Plan/FNP WFS + ALKIS parcel.
-      3. Interrupt (chat) or return error dict (form) for: postcode_needed,
-         zone_not_found, plot_area_needed.
-      4. Compute estimated_floor_area = GFZ × plot_area (needed by all parallel nodes).
+      1. lookup_zone_for_address — Photon geocode + B-Plan/FNP WFS + ALKIS parcel.
+      2. interrupt() (chat) or return error dict (form) for:
+           postcode_needed   — address is genuinely ambiguous across multiple districts.
+           address_not_found — typo or made-up address; user can supply corrected address.
+           zone_not_found    — geocode OK but zone could not be determined automatically.
+           plot_area_needed  — ALKIS parcel not found; user must supply m² manually.
+      3. Compute estimated_floor_area = GFZ × plot_area (needed by all parallel nodes).
 
     1 retry on transient network failure.
     """
-    address  = state.get("address") or ""
-    provider = state.get("llm_provider", DEFAULT_LLM_PROVIDER)
-    mode     = state.get("mode", "chat")
+    address = state.get("address") or ""
+    mode    = state.get("mode", "chat")
 
-    # --- Step 1: extract components to detect missing postcode early ---
-    extractor  = _get_address_extractor(provider)
-    ext_result = extractor.invoke({
-        "messages": [HumanMessage(content=f"Extract address components from: {address}")]
-    })
-    components: AddressComponents = ext_result["responses"][0]
-
-    if not components.postcode:
-        logger.info(f"resolve_address: no postcode detected in '{address}'")
-        if mode == "form":
-            return {"tool_results": {"error": "postcode_needed"}}
-        # Chat mode: don't interrupt yet — geocode first.
-        # If the address genuinely exists in multiple districts, lookup_zone_for_address
-        # returns an error containing "multiple" / "ambiguous", which triggers
-        # the postcode_needed interrupt in the ambiguity check below.
-
-    # --- Step 2: geocode + zone lookup (1 retry on transient failure) ---
+    # --- Step 1: geocode + zone lookup (1 retry on transient failure) ---
     zone_result: dict | None = None
     for attempt in range(2):
         try:
@@ -277,25 +250,91 @@ def resolve_address(state: AgentState) -> dict:
                 return {"tool_results": {"error": "resolve_failed", "message": str(exc)}}
             raise NodeInterrupt(f"resolve_failed: {exc}") from exc
 
-    # Network error returned as dict
+    # --- Step 2: handle error responses from the geocoder ---
     if "error" in zone_result:
         err_msg = zone_result["error"]
-        # Ambiguous address → ask for postcode
+
+        # Ambiguous address — street exists in multiple districts with different postcodes.
+        # The error message from lookup_zone_for_address already contains specific candidates.
         if any(kw in err_msg for kw in ("multiple", "postcodes", "ambiguous")):
             if mode == "form":
                 return {"tool_results": {"error": "postcode_needed", "message": err_msg}}
-            raise NodeInterrupt(f"postcode_needed: {err_msg}")
-        # Other geocode error
-        if mode == "form":
-            return {"tool_results": {"error": "resolve_failed", "message": err_msg}}
-        raise NodeInterrupt(f"resolve_failed: {err_msg}")
+            user_reply = interrupt(f"postcode_needed: {err_msg}")
+            user_reply = user_reply.strip()
+            # User may reply with just a postcode ("13357") or a full corrected address
+            if re.search(r"\b1\d{4}\b", user_reply) and "," not in user_reply:
+                address = f"{address.split(',')[0].strip()}, {user_reply}"
+            else:
+                address = user_reply
+            zone_result = lookup_zone_for_address(address)
+            if "error" in zone_result:
+                if mode == "form":
+                    return {"tool_results": {"error": "resolve_failed", "message": zone_result["error"]}}
+                raise NodeInterrupt(f"resolve_failed: {zone_result['error']}")
 
-    # Zone could not be determined from B-Plan or FNP
+        else:
+            # Address genuinely not found (typo, made-up, outside Berlin, etc.).
+            # Give the user a chance to correct the address instead of failing immediately.
+            if mode == "form":
+                return {"tool_results": {"error": "resolve_failed", "message": err_msg}}
+            user_reply = interrupt(
+                f"address_not_found: I couldn't find '{address}' in Berlin. "
+                "Please check the spelling and enter the corrected address."
+            )
+            address = user_reply.strip()
+            zone_result = lookup_zone_for_address(address)
+            if "error" in zone_result:
+                raise NodeInterrupt(
+                    f"resolve_failed: I still couldn't find '{address}'. "
+                    "Please start a new query with the correct address."
+                )
+
+    # Zone could not be determined from B-Plan or FNP.
+    # This also happens when Photon geocoded a typo/made-up address to the wrong location.
+    # Show the user what address was actually found and let them correct it OR supply a zone.
     if zone_result.get("needs_user_input"):
-        note = zone_result.get("note", "Zone type could not be determined automatically.")
+        display_name = zone_result.get("display_name", address)
         if mode == "form":
             return {"tool_results": {"error": "zone_not_found"}}
-        raise NodeInterrupt(f"zone_not_found: {note}")
+
+        user_reply = interrupt(
+            f"zone_not_found: I found your address as '{display_name}' in the GDI Berlin "
+            f"database, but the zone type (Bebauungsplan / FNP) could not be determined.\n\n"
+            f"• If this address is correct, please provide the zone type manually "
+            f"(e.g. WA, MI, MK, GE).\n"
+            f"• If the address is wrong (e.g. a typo), please type the correct full address."
+        )
+        user_reply = user_reply.strip()
+
+        # Zone code: 2–4 uppercase letters, optionally followed by a single digit (e.g. WA, MI2)
+        if re.match(r'^[A-Za-z]{1,4}\d?$', user_reply) and len(user_reply) <= 5:
+            zone_type    = user_reply.upper()
+            plot_area_m2 = zone_result.get("plot_area_m2")
+            gfz          = ZONE_PARAMETERS.get(zone_type, {}).get("gfz", 1.2)
+            est_floor    = round(gfz * float(plot_area_m2 or 0), 2)
+            logger.info(f"resolve_address: manual zone '{zone_type}' for '{display_name}'")
+            return {
+                "canonical_address":    display_name,
+                "geocode_result":       zone_result,
+                "resolved_zone":        zone_type,
+                "resolved_plot_area":   float(plot_area_m2 or 0),
+                "estimated_floor_area": est_floor,
+                "awaiting_clarification": False,
+                "clarification_type":   None,
+            }
+        else:
+            # Corrected address — re-geocode once
+            address     = user_reply
+            zone_result = lookup_zone_for_address(address)
+            if "error" in zone_result:
+                raise NodeInterrupt(
+                    f"resolve_failed: Could not geocode '{address}': {zone_result['error']}"
+                )
+            if zone_result.get("needs_user_input"):
+                raise NodeInterrupt(
+                    f"resolve_failed: Still could not determine the zone type for "
+                    f"'{zone_result.get('display_name', address)}'. Please start a new query."
+                )
 
     zone_type    = zone_result["zone_type"]
     plot_area_m2 = zone_result.get("plot_area_m2")
@@ -304,10 +343,17 @@ def resolve_address(state: AgentState) -> dict:
     if not plot_area_m2:
         if mode == "form":
             return {"tool_results": {"error": "plot_area_needed"}}
-        raise NodeInterrupt(
+        user_reply = interrupt(
             "plot_area_needed: The official plot area could not be found in the ALKIS cadastre. "
             "Please provide the plot area in m²."
         )
+        try:
+            plot_area_m2 = float(user_reply.strip().replace(",", "."))
+        except ValueError:
+            raise NodeInterrupt(
+                "resolve_failed: Could not parse the plot area. "
+                "Please start a new query and enter the plot area as a number (e.g. 850)."
+            )
 
     # --- Step 3: pre-compute estimated_floor_area before fan-out ---
     gfz                  = ZONE_PARAMETERS.get(zone_type, {}).get("gfz", 1.2)

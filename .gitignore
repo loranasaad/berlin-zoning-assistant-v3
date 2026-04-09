@@ -33,3 +33,4 @@ Thumbs.db
 .streamlit/secrets.toml
 
 memory.db
+docs/

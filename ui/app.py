@@ -71,8 +71,7 @@ def _init_session_state():
         "awaiting_clarification": False,
         "clarification_type":    None,
         "authenticated":         False,
-        "pending_tab":           None,       # "chat" | "form" | None
-        "main_tab_selector":     "💬 Chat",  # drives the segmented_control widget
+        "active_tab":            "chat",     # "chat" | "form" — owns tab selection
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -209,7 +208,7 @@ def _handoff_to_chat(report: dict, address: str, form_thread_id: str | None):
     })
 
     # Switch to Chat tab
-    st.session_state.pending_tab           = "chat"
+    st.session_state.active_tab            = "chat"
     st.session_state.thread_id             = new_thread_id
     st.session_state.awaiting_clarification = False
     st.session_state.clarification_type    = None
@@ -245,30 +244,31 @@ def main():
     from chain.agent import get_graph
     get_graph()
 
-    # Two-tab layout — uses segmented_control so the active tab can be switched
-    # programmatically (e.g. "Continue in Chat" handoff from Quick Report).
+    # Two-tab layout — active_tab in session_state owns the selection so that
+    # _handoff_to_chat can switch programmatically (just set active_tab + rerun).
     lang = st.session_state.language
 
-    _TAB_CHAT = "💬 Chat"
-    _TAB_FORM = "📋 Quick Report"
-    _TAB_KEY  = "main_tab_selector"
+    col_chat, col_form = st.columns(2)
+    if col_chat.button(
+        "💬 Chat",
+        use_container_width=True,
+        type="primary" if st.session_state.active_tab == "chat" else "secondary",
+        key="tab_btn_chat",
+    ):
+        st.session_state.active_tab = "chat"
+        st.rerun()
+    if col_form.button(
+        "📋 Quick Report",
+        use_container_width=True,
+        type="primary" if st.session_state.active_tab == "form" else "secondary",
+        key="tab_btn_form",
+    ):
+        st.session_state.active_tab = "form"
+        st.rerun()
 
-    # Honour a pending programmatic switch (set by _handoff_to_chat)
-    if st.session_state.get("pending_tab") == "chat":
-        st.session_state[_TAB_KEY] = _TAB_CHAT
-        st.session_state.pending_tab = None
-    elif st.session_state.get("pending_tab") == "form":
-        st.session_state[_TAB_KEY] = _TAB_FORM
-        st.session_state.pending_tab = None
+    st.divider()
 
-    selected_tab = st.segmented_control(
-        "Navigation",
-        options=[_TAB_CHAT, _TAB_FORM],
-        key=_TAB_KEY,
-        label_visibility="collapsed",
-    )
-
-    if selected_tab == _TAB_FORM:
+    if st.session_state.active_tab == "form":
         _render_quick_report_tab(lang)
     else:
         render_chat_tab(lang)

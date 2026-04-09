@@ -12,6 +12,7 @@ from typing import Generator
 
 import streamlit as st
 from langchain_core.messages import AIMessageChunk, HumanMessage
+from langgraph.types import Command
 
 from config import DEFAULT_LLM_PROVIDER
 
@@ -58,10 +59,9 @@ def run_agent(
     graph = get_graph()
 
     if resuming:
-        # Resume a NodeInterrupt — graph re-runs from the interrupted node.
-        # State updates (address correction, etc.) are applied by ui/chat.py
-        # via graph.update_state() BEFORE calling run_agent(resuming=True).
-        input_val = None
+        # Resume an interrupt() pause — pass user_input as the resume value.
+        # interrupt() in resolve_address returns this value in-place (no re-run).
+        input_val = Command(resume=user_input)
     else:
         input_val = {
             "messages":              [HumanMessage(content=user_input)],

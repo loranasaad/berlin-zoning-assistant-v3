@@ -33,9 +33,13 @@ _CLARIFICATION_PROMPTS = {
         "de": "Bitte geben Sie die Postleitzahl an (z. B. 10115):",
         "en": "Please provide the postcode (e.g. 10115):",
     },
+    "address_not_found": {
+        "de": "Bitte geben Sie die korrigierte Adresse ein:",
+        "en": "Please enter the corrected address:",
+    },
     "zone_not_found": {
-        "de": "Bitte geben Sie den Gebietstyp manuell an (z. B. WA, MI, MK, GE):",
-        "en": "Please provide the zone type manually (e.g. WA, MI, MK, GE):",
+        "de": "Gebietstyp angeben (z. B. WA, MI, MK, GE) ODER korrekte Adresse eingeben:",
+        "en": "Provide zone type (e.g. WA, MI, MK, GE) OR type the corrected address:",
     },
     "plot_area_needed": {
         "de": "Bitte geben Sie die Grundstücksfläche in m² an:",
@@ -145,10 +149,6 @@ def _handle_user_input(language: str, chat_container=None):
     resuming = st.session_state.awaiting_clarification
     config   = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-    # Apply state corrections before resuming
-    if resuming:
-        _apply_clarification(user_input, config)
-
     # Use the pre-created container so new messages render above the sticky input bar
     out = chat_container if chat_container is not None else st.container()
 
@@ -184,7 +184,7 @@ def _handle_user_input(language: str, chat_container=None):
 
         # Only recoverable interrupts keep awaiting_clarification=True.
         # resolve_failed (address not found) is terminal — next message starts fresh.
-        recoverable = ctype in ("postcode_needed", "zone_not_found", "plot_area_needed")
+        recoverable = ctype in ("postcode_needed", "address_not_found", "zone_not_found", "plot_area_needed")
         st.session_state.awaiting_clarification = recoverable
         st.session_state.clarification_type     = ctype if recoverable else None
 
@@ -224,44 +224,3 @@ def _handle_user_input(language: str, chat_container=None):
             st.rerun()
 
 
-# ---------------------------------------------------------------------------
-# HITL state correction
-# ---------------------------------------------------------------------------
-
-def _apply_clarification(user_input: str, config: dict):
-    """
-    Before resuming from a NodeInterrupt, update the relevant state field so
-    resolve_address re-runs with corrected data.
-
-    postcode_needed  → append postcode to existing address
-    plot_area_needed → set resolved_plot_area (skip re-geocoding)
-    zone_not_found   → set resolved_zone (skip re-geocoding)
-    """
-    ctype = st.session_state.clarification_type or ""
-    graph = get_graph()
-
-    try:
-        if ctype == "postcode_needed":
-            current = graph.get_state(config).values.get("address", "")
-            # If user typed a full address keep it; otherwise append the postcode
-            new_address = (
-                user_input.strip()
-                if "," in user_input
-                else f"{current}, {user_input.strip()}"
-            )
-            graph.update_state(config, {"address": new_address})
-
-        elif ctype == "plot_area_needed":
-            try:
-                plot_area = float(user_input.strip().replace(",", "."))
-                graph.update_state(config, {"resolved_plot_area": plot_area})
-            except ValueError:
-                pass  # leave state as-is; resolve_address will interrupt again
-
-        elif ctype == "zone_not_found":
-            graph.update_state(config, {"resolved_zone": user_input.strip().upper()})
-
-    except Exception as exc:
-        # Non-fatal — resume will still happen, may interrupt again
-        import logging
-        logging.getLogger(__name__).warning(f"_apply_clarification failed: {exc}")
