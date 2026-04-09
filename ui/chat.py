@@ -63,11 +63,14 @@ def init_chat_state():
 
 def render_chat_tab(language: str):
     init_chat_state()
-    if not st.session_state.chat_history:
-        render_welcome(language)
-    else:
-        _render_chat_history(language)
-    _handle_user_input(language)
+    # Container created before chat_input so new messages render above the sticky input bar
+    chat_container = st.container()
+    with chat_container:
+        if not st.session_state.chat_history:
+            render_welcome(language)
+        else:
+            _render_chat_history(language)
+    _handle_user_input(language, chat_container)
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +89,7 @@ def _render_chat_history(language: str):
                 token_usage=meta.get("token_usage"),
                 language=language,
                 map_index=meta_index,
+                zoning_report=meta.get("zoning_report"),
             )
             meta_index += 1
 
@@ -94,7 +98,7 @@ def _render_chat_history(language: str):
 # Input handling
 # ---------------------------------------------------------------------------
 
-def _handle_user_input(language: str):
+def _handle_user_input(language: str, chat_container=None):
     s = COMPONENT_STRINGS[language]
 
     # Clarification prompt — shown when graph is waiting for HITL input
@@ -145,8 +149,12 @@ def _handle_user_input(language: str):
     if resuming:
         _apply_clarification(user_input, config)
 
+    # Use the pre-created container so new messages render above the sticky input bar
+    out = chat_container if chat_container is not None else st.container()
+
     # Show user message
-    render_chat_message("user", user_input)
+    with out:
+        render_chat_message("user", user_input)
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
     # Stream response
@@ -159,8 +167,9 @@ def _handle_user_input(language: str):
             resuming=resuming,
         )
 
-    with st.chat_message("assistant"):
-        streamed_text = st.write_stream(stream_gen)
+    with out:
+        with st.chat_message("assistant"):
+            streamed_text = st.write_stream(stream_gen)
 
     state_result = get_state_fn()
 
@@ -175,9 +184,10 @@ def _handle_user_input(language: str):
 
         # Show interrupt message as an assistant message
         if not streamed_text:
-            render_chat_message("assistant", message)
+            with out:
+                render_chat_message("assistant", message)
             st.session_state.chat_history.append({"role": "assistant", "content": message})
-            st.session_state.chat_metadata.append({"tool_calls": [], "sources": [], "token_usage": {}})
+            st.session_state.chat_metadata.append({"tool_calls": [], "sources": [], "token_usage": {}, "zoning_report": None})
 
     else:
         # Normal completion
@@ -185,18 +195,22 @@ def _handle_user_input(language: str):
         st.session_state.clarification_type     = None
 
         if streamed_text:
-            render_technical_details(
-                tool_calls=[],
-                source_chunks=state_result.get("source_chunks", []),
-                token_usage=state_result.get("token_usage"),
-                language=language,
-                map_index=len(st.session_state.chat_metadata),
-            )
+            zoning_report = state_result.get("tool_results", {}).get("zoning_report")
+            with out:
+                render_technical_details(
+                    tool_calls=[],
+                    source_chunks=state_result.get("source_chunks", []),
+                    token_usage=state_result.get("token_usage"),
+                    language=language,
+                    map_index=len(st.session_state.chat_metadata),
+                    zoning_report=zoning_report,
+                )
             st.session_state.chat_history.append({"role": "assistant", "content": streamed_text})
             st.session_state.chat_metadata.append({
-                "tool_calls":  [],
-                "sources":     state_result.get("source_chunks", []),
-                "token_usage": state_result.get("token_usage", {}),
+                "tool_calls":    [],
+                "sources":       state_result.get("source_chunks", []),
+                "token_usage":   state_result.get("token_usage", {}),
+                "zoning_report": zoning_report,
             })
             update_cost_tracker(state_result.get("token_usage", {}))
 

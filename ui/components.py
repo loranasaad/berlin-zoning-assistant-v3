@@ -33,6 +33,7 @@ def render_technical_details(
 	token_usage: dict | None,
 	language: str = "en",
 	map_index: int = 0,
+	zoning_report: dict | None = None,
 ):
 	"""
 	Single ' Analysis' expander per assistant message, collapsed by default.
@@ -42,8 +43,11 @@ def render_technical_details(
 	"""
 	s = COMPONENT_STRINGS[language]
 
-	parsed = {tc["tool"]: _parse_tool_output(tc) for tc in tool_calls}
-	zoning_report = parsed.get("get_full_zoning_report") or {}
+	# Sprint 3: zoning_report passed directly from state["tool_results"]["zoning_report"].
+	# Sprint 2 legacy fallback: extract from the retired get_full_zoning_report tool call.
+	if not zoning_report:
+		parsed = {tc["tool"]: _parse_tool_output(tc) for tc in tool_calls}
+		zoning_report = parsed.get("get_full_zoning_report") or {}
 	zoning_data = _extract_zoning_data(zoning_report)
 	has_zoning = zoning_data is not None and zoning_report.get("status") == "complete"
 
