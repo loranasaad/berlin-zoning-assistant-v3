@@ -71,6 +71,8 @@ def _init_session_state():
         "awaiting_clarification": False,
         "clarification_type":    None,
         "authenticated":         False,
+        "pending_tab":           None,       # "chat" | "form" | None
+        "main_tab_selector":     "💬 Chat",  # drives the segmented_control widget
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -207,6 +209,7 @@ def _handoff_to_chat(report: dict, address: str, form_thread_id: str | None):
     })
 
     # Switch to Chat tab
+    st.session_state.pending_tab           = "chat"
     st.session_state.thread_id             = new_thread_id
     st.session_state.awaiting_clarification = False
     st.session_state.clarification_type    = None
@@ -242,17 +245,30 @@ def main():
     from chain.agent import get_graph
     get_graph()
 
-    # Two-tab layout
-    lang   = st.session_state.language
-    tab_labels = (
-        ["💬 Chat", "📋 Quick Report"]
-        if lang == "en"
-        else ["💬 Chat", "📋 Quick Report"]
+    # Two-tab layout — uses segmented_control so the active tab can be switched
+    # programmatically (e.g. "Continue in Chat" handoff from Quick Report).
+    lang = st.session_state.language
+
+    _TAB_CHAT = "💬 Chat"
+    _TAB_FORM = "📋 Quick Report"
+    _TAB_KEY  = "main_tab_selector"
+
+    # Honour a pending programmatic switch (set by _handoff_to_chat)
+    if st.session_state.get("pending_tab") == "chat":
+        st.session_state[_TAB_KEY] = _TAB_CHAT
+        st.session_state.pending_tab = None
+    elif st.session_state.get("pending_tab") == "form":
+        st.session_state[_TAB_KEY] = _TAB_FORM
+        st.session_state.pending_tab = None
+
+    selected_tab = st.segmented_control(
+        "Navigation",
+        options=[_TAB_CHAT, _TAB_FORM],
+        key=_TAB_KEY,
+        label_visibility="collapsed",
     )
-    tab_chat, tab_form = st.tabs(tab_labels)
 
-    with tab_chat:
-        render_chat_tab(lang)
-
-    with tab_form:
+    if selected_tab == _TAB_FORM:
         _render_quick_report_tab(lang)
+    else:
+        render_chat_tab(lang)

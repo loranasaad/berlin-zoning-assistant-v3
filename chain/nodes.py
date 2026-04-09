@@ -257,10 +257,10 @@ def resolve_address(state: AgentState) -> dict:
         logger.info(f"resolve_address: no postcode detected in '{address}'")
         if mode == "form":
             return {"tool_results": {"error": "postcode_needed"}}
-        raise NodeInterrupt(
-            "postcode_needed: This address may exist in multiple Berlin districts. "
-            "Please include the 5-digit postcode (e.g. 10115) to identify the correct one."
-        )
+        # Chat mode: don't interrupt yet — geocode first.
+        # If the address genuinely exists in multiple districts, lookup_zone_for_address
+        # returns an error containing "multiple" / "ambiguous", which triggers
+        # the postcode_needed interrupt in the ambiguity check below.
 
     # --- Step 2: geocode + zone lookup (1 retry on transient failure) ---
     zone_result: dict | None = None

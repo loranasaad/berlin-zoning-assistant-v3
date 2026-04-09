@@ -219,6 +219,10 @@ def _handle_user_input(language: str, chat_container=None):
             })
             update_cost_tracker(state_result.get("token_usage", {}))
 
+        # If we just resolved a HITL interrupt, rerun to clear the info box
+        if resuming:
+            st.rerun()
+
 
 # ---------------------------------------------------------------------------
 # HITL state correction
