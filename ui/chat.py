@@ -169,6 +169,9 @@ def _handle_user_input(language: str, chat_container=None):
 
     with out:
         with st.chat_message("assistant"):
+            # Reserve a slot BEFORE the stream so we can write the interrupt message
+            # into the same bubble instead of creating a second empty+error pair.
+            _interrupt_slot = st.empty()
             streamed_text = st.write_stream(stream_gen)
 
     state_result = get_state_fn()
@@ -179,13 +182,15 @@ def _handle_user_input(language: str, chat_container=None):
         ctype = interrupt_value.split(":")[0].strip() if ":" in interrupt_value else ""
         message = interrupt_value.split(":", 1)[1].strip() if ":" in interrupt_value else interrupt_value
 
-        st.session_state.awaiting_clarification = True
-        st.session_state.clarification_type     = ctype
+        # Only recoverable interrupts keep awaiting_clarification=True.
+        # resolve_failed (address not found) is terminal — next message starts fresh.
+        recoverable = ctype in ("postcode_needed", "zone_not_found", "plot_area_needed")
+        st.session_state.awaiting_clarification = recoverable
+        st.session_state.clarification_type     = ctype if recoverable else None
 
-        # Show interrupt message as an assistant message
+        # Write interrupt message into the existing bubble (no second bubble)
         if not streamed_text:
-            with out:
-                render_chat_message("assistant", message)
+            _interrupt_slot.markdown(message)
             st.session_state.chat_history.append({"role": "assistant", "content": message})
             st.session_state.chat_metadata.append({"tool_calls": [], "sources": [], "token_usage": {}, "zoning_report": None})
 
