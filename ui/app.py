@@ -2,10 +2,9 @@
 ui/app.py — Main Streamlit application.
 
 Sprint 3: two-tab layout (Chat + Quick Report), password gate,
-vector store loading, and "Continue in Chat" handoff from form to chat.
+vector store loading.
 """
 
-import json
 import re
 import uuid
 
@@ -86,7 +85,6 @@ def _render_quick_report_tab(language: str):
     """
     Form mode: validated address + postcode → synchronous graph.invoke()
     → render cards directly (no LLM synthesis step).
-    "Continue in Chat →" seeds a new thread so follow-up questions work.
     """
     from chain.agent import run_form_agent
 
@@ -171,54 +169,6 @@ def _render_quick_report_tab(language: str):
     _render_construction_cost_card(report.get("construction_cost", {}), language)
     _render_demographics_card(report.get("demographics"), language)
 
-    # Handoff button
-    btn_label = "→ Im Chat fortsetzen" if is_de else "→ Continue in Chat"
-    if st.button(btn_label, use_container_width=True, key="handoff_btn"):
-        _handoff_to_chat(report, address, final_state.get("_thread_id"))
-
-
-# ---------------------------------------------------------------------------
-# Chat handoff
-# ---------------------------------------------------------------------------
-
-def _handoff_to_chat(report: dict, address: str, form_thread_id: str | None):
-    """
-    Seed a new chat thread with the Quick Report results so the user can ask
-    follow-up questions without re-running tools.
-    Pattern: edit-state-human-feedback.ipynb (LangChain Academy).
-    """
-    from chain.agent import get_graph
-    from langchain_core.messages import HumanMessage, AIMessage
-
-    new_thread_id = str(uuid.uuid4())
-    config        = {"configurable": {"thread_id": new_thread_id}}
-    graph         = get_graph()
-
-    summary = json.dumps(report, indent=2, ensure_ascii=False)
-    graph.update_state(config, {
-        "messages": [
-            HumanMessage(content=f"Quick Report für Adresse: {address}"),
-            AIMessage(content=f"Quick Report abgeschlossen.\n\n```json\n{summary}\n```"),
-        ],
-        "mode":         "chat",
-        "language":     st.session_state.language,
-        "llm_provider": st.session_state.llm_provider,
-        "tool_results": {"zoning_report": report},
-        "cache_hit":    True,
-    })
-
-    # Switch to Chat tab
-    st.session_state.active_tab            = "chat"
-    st.session_state.thread_id             = new_thread_id
-    st.session_state.awaiting_clarification = False
-    st.session_state.clarification_type    = None
-    st.session_state.chat_history = [
-        {"role": "user",      "content": f"Quick Report für Adresse: {address}"},
-        {"role": "assistant", "content": "Quick Report abgeschlossen. Sie können jetzt Folgefragen stellen."},
-    ]
-    st.session_state.chat_metadata = [{"tool_calls": [], "sources": [], "token_usage": {}}]
-    st.rerun()
-
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -244,8 +194,7 @@ def main():
     from chain.agent import get_graph
     get_graph()
 
-    # Two-tab layout — active_tab in session_state owns the selection so that
-    # _handoff_to_chat can switch programmatically (just set active_tab + rerun).
+    # Two-tab layout — active_tab in session_state owns the selection.
     lang = st.session_state.language
 
     col_chat, col_form = st.columns(2)

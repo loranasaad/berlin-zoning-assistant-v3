@@ -24,16 +24,18 @@ LANGUAGES = {
 DEFAULT_LANGUAGE = "de"
 
 # Models
-ANTHROPIC_MODEL_ID = "claude-sonnet-4-6"
-OPENAI_MODEL_ID    = "gpt-5.2"
-MODEL_ID           = ANTHROPIC_MODEL_ID   # backward-compat alias for rag/retriever.py
+ANTHROPIC_MODEL_ID  = "claude-sonnet-4-6"
+OPENAI_MODEL_ID     = "gpt-5.2"
+OPENAI_MODEL_ID_MINI = "gpt-4.1-mini"
+MODEL_ID            = ANTHROPIC_MODEL_ID   # backward-compat alias for rag/retriever.py
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # Multi-LLM
 LLM_PROVIDERS = {
-	"OpenAI (GPT-5.2)":   "openai",
-	"Anthropic (Claude)": "anthropic",
+	"Anthropic (Claude)":    "anthropic",
+	"OpenAI (GPT-5.2)":      "openai",
+	"OpenAI (GPT-4.1 mini)": "openai-mini",
 }
 DEFAULT_LLM_PROVIDER = "openai"
 

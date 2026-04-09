@@ -121,8 +121,7 @@ def run_form_agent(
 ) -> dict:
     """
     Synchronous graph.invoke() for the Quick Report tab.
-    Returns the final LangGraph state dict with a "_thread_id" key appended
-    so ui/app.py can use it for the "Continue in Chat" handoff.
+    Returns the final LangGraph state dict.
     """
     import uuid
     graph = get_graph()
@@ -143,9 +142,7 @@ def run_form_agent(
         "source_chunks":         [],
     }
 
-    final_state = graph.invoke(initial_state, config)
-    final_state["_thread_id"] = thread_id
-    return final_state
+    return graph.invoke(initial_state, config)
 
 
 # ---------------------------------------------------------------------------
