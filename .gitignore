@@ -1,0 +1,35 @@
+# Secrets
+.env
+secrets/
+.secrets/
+
+# Vector database (can be large, regenerated on first run)
+chroma_db/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+memory.db
