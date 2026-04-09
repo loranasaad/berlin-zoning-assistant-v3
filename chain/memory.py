@@ -10,6 +10,7 @@ Pattern: chatbot-external-memory.ipynb (LangChain Academy)
 
 import json
 import logging
+import re
 import sqlite3
 
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -48,7 +49,30 @@ def get_checkpointer() -> SqliteSaver:
 # ---------------------------------------------------------------------------
 
 def _normalise(address: str) -> str:
-    return address.strip().lower()
+    """
+    Token-sorted normalisation so "Straße 13" and "13 Straße" produce the same
+    cache key regardless of number/street word order.
+
+    Steps:
+      1. Lowercase + strip.
+      2. Extract the Berlin postcode (1XXXX) to append at the end.
+      3. Remove postcode from the rest, strip punctuation, split into tokens.
+      4. Sort tokens alphabetically and re-join, appending the postcode last.
+
+    Example:
+      "13 Schwedter Straße, 10119 Berlin"  →  "13 berlin schwedter straße 10119"
+      "Schwedter Straße 13, 10119 Berlin"  →  "13 berlin schwedter straße 10119"
+    """
+    s = address.strip().lower()
+    m = re.search(r'\b(1\d{4})\b', s)
+    postcode = m.group(1) if m else ""
+    s = re.sub(r'\b1\d{4}\b', '', s)
+    s = re.sub(r'[,.\-/]', ' ', s)
+    tokens = sorted(t for t in s.split() if t)
+    key = " ".join(tokens)
+    if postcode:
+        key += f" {postcode}"
+    return key
 
 
 def cache_lookup(address: str) -> dict | None:

@@ -10,7 +10,7 @@ import uuid
 
 import streamlit as st
 
-from config import _get_secret, DEFAULT_LLM_PROVIDER
+from config import DEFAULT_LLM_PROVIDER, PASSWORD_PROTECTION_ENABLED, APP_PASSWORD
 from rag.embeddings import get_or_create_vector_store
 from ui.sidebar import render_sidebar
 from ui.chat import render_chat_tab
@@ -35,12 +35,14 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 
 def _check_password() -> bool:
+    if not PASSWORD_PROTECTION_ENABLED:
+        return True
     if st.session_state.get("authenticated"):
         return True
     st.title("🏗️ Berliner Bebauungsassistent")
     pwd = st.text_input("Passwort", type="password")
     if st.button("Anmelden"):
-        if pwd == _get_secret("APP_PASSWORD"):
+        if pwd == APP_PASSWORD:
             st.session_state.authenticated = True
             st.rerun()
         else:

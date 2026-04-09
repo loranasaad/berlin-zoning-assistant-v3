@@ -69,6 +69,12 @@ RATE_LIMITING_ENABLED     = True
 RATE_LIMIT_REQUESTS       = 5
 RATE_LIMIT_WINDOW_SECONDS = 60
 
+# Password protection
+# Set PASSWORD_PROTECTION_ENABLED = False to disable the login gate entirely.
+# APP_PASSWORD falls back to the APP_PASSWORD env var / Streamlit secret.
+PASSWORD_PROTECTION_ENABLED = True
+APP_PASSWORD                = _get_secret("APP_PASSWORD")
+
 # LangSmith — auto-configured at import if env vars are set
 _LANGSMITH_TRACING = _get_secret("LANGSMITH_TRACING")
 _LANGSMITH_API_KEY = _get_secret("LANGSMITH_API_KEY")
