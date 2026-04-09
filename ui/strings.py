@@ -101,6 +101,20 @@ COMPONENT_STRINGS = {
 		"demo_rent":				"Avg rent",
 		"demo_household":			"Dominant household",
 		"demo_source":				"*Source: {src}, reference date: {ref}*",
+		# Streamlit Cloud secrets banner
+		"no_env_banner": (
+			"**No local `.env` file detected.**\n\n"
+			"To run this app on **Streamlit Cloud**, add your API keys via the Secrets manager:\n\n"
+			"1. Open your app on [share.streamlit.io](https://share.streamlit.io)\n"
+			"2. Click **⋮** (top-right) → **Settings** → **Secrets**\n"
+			"3. Paste your keys in TOML format:\n\n"
+			"```toml\n"
+			"ANTHROPIC_API_KEY = \"sk-ant-...\"\n"
+			"OPENAI_API_KEY    = \"sk-...\"\n"
+			"```\n\n"
+			"4. Click **Save** — the app restarts automatically.\n\n"
+			"_Running locally? Create a `.env` file in the project root to hide this message._"
+		),
 	},
 	"de": {
 		# General
@@ -204,6 +218,20 @@ COMPONENT_STRINGS = {
 		"demo_rent":				"Ø Miete",
 		"demo_household":			"Haushaltstyp",
 		"demo_source":				"*Quelle: {src}, Stichtag: {ref}*",
+		# Streamlit Cloud secrets banner
+		"no_env_banner": (
+			"**Keine lokale `.env`-Datei gefunden.**\n\n"
+			"Um diese App auf **Streamlit Cloud** zu betreiben, fügen Sie Ihre API-Schlüssel über den Secrets-Manager hinzu:\n\n"
+			"1. Öffnen Sie Ihre App auf [share.streamlit.io](https://share.streamlit.io)\n"
+			"2. Klicken Sie auf **⋮** (oben rechts) → **Settings** → **Secrets**\n"
+			"3. Fügen Sie Ihre Schlüssel im TOML-Format ein:\n\n"
+			"```toml\n"
+			"ANTHROPIC_API_KEY = \"sk-ant-...\"\n"
+			"OPENAI_API_KEY    = \"sk-...\"\n"
+			"```\n\n"
+			"4. Klicken Sie auf **Save** — die App startet automatisch neu.\n\n"
+			"_Lokal unterwegs? Erstellen Sie eine `.env`-Datei im Projektverzeichnis, um diese Meldung auszublenden._"
+		),
 	},
 }
 

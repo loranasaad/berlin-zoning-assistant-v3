@@ -10,7 +10,8 @@ import uuid
 
 import streamlit as st
 
-from config import DEFAULT_LLM_PROVIDER, PASSWORD_PROTECTION_ENABLED, APP_PASSWORD
+from config import DEFAULT_LLM_PROVIDER, PASSWORD_PROTECTION_ENABLED, APP_PASSWORD, ENV_FILE_PRESENT
+from ui.strings import COMPONENT_STRINGS
 from rag.embeddings import get_or_create_vector_store
 from ui.sidebar import render_sidebar
 from ui.chat import render_chat_tab
@@ -181,6 +182,11 @@ def main():
         st.stop()
 
     _init_session_state()
+
+    if not ENV_FILE_PRESENT:
+        lang = st.session_state.get("language", "de")
+        st.info(COMPONENT_STRINGS[lang]["no_env_banner"])
+
     settings = render_sidebar()
     st.session_state.language     = settings["language"]
     st.session_state.llm_provider = settings["llm_provider"]

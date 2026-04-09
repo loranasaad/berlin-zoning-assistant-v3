@@ -1,8 +1,10 @@
 import os
+import pathlib
 import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
+ENV_FILE_PRESENT = pathlib.Path(".env").exists()
 
 # Makes the same config.py work locally and on share.streamlit.io
 def _get_secret(key: str) -> str | None:
