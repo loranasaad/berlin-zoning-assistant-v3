@@ -1,0 +1,43 @@
+# Core
+streamlit==1.45.0
+python-dotenv
+
+# LangChain / LangGraph
+langchain
+langchain-core
+langchain-anthropic
+langchain-openai
+langchain-chroma
+langchain-community
+langchain-text-splitters
+langgraph==1.0.10
+langgraph-checkpoint
+langgraph-prebuilt
+langgraph-checkpoint-sqlite
+
+# LLM providers
+anthropic
+openai
+
+# Structured extraction
+trustcall
+
+# Vector store
+chromadb
+
+# PDF processing
+pypdf
+
+# Memory
+# (SqliteSaver is in langgraph-checkpoint-sqlite, no extra package needed)
+
+# Maps / geo
+geopy
+folium
+streamlit-folium
+
+# Data
+pandas
+
+# HTTP
+requests
