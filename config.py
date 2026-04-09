@@ -33,7 +33,7 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 
 # Multi-LLM
 LLM_PROVIDERS = {
-	"Anthropic (Claude)":    "anthropic",
+	"Anthropic (Claude Sonnet 4.6)": "anthropic",
 	"OpenAI (GPT-5.2)":      "openai",
 	"OpenAI (GPT-4.1 mini)": "openai-mini",
 }

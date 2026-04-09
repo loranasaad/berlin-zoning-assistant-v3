@@ -43,11 +43,7 @@ def render_technical_details(
 	"""
 	s = COMPONENT_STRINGS[language]
 
-	# Sprint 3: zoning_report passed directly from state["tool_results"]["zoning_report"].
-	# Sprint 2 legacy fallback: extract from the retired get_full_zoning_report tool call.
-	if not zoning_report:
-		parsed = {tc["tool"]: _parse_tool_output(tc) for tc in tool_calls}
-		zoning_report = parsed.get("get_full_zoning_report") or {}
+	zoning_report = zoning_report or {}
 	zoning_data = _extract_zoning_data(zoning_report)
 	has_zoning = zoning_data is not None and zoning_report.get("status") == "complete"
 

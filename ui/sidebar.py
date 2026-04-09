@@ -10,7 +10,7 @@ Sprint 3 additions:
 import uuid
 import streamlit as st
 
-from config import LANGUAGES, DEFAULT_LANGUAGE, LLM_PROVIDERS, DEFAULT_LLM_PROVIDER
+from config import LANGUAGES, DEFAULT_LANGUAGE, LLM_PROVIDERS, DEFAULT_LLM_PROVIDER, TOKEN_COSTS
 from ui.strings import SIDEBAR_STRINGS
 
 
@@ -110,10 +110,9 @@ def _render_cost_tracker(s: dict):
 
 def _render_clear_chat(s: dict):
     if st.button(s["clear_chat"], use_container_width=True):
-        import uuid as _uuid
         st.session_state.chat_history    = []
         st.session_state.chat_metadata   = []
-        st.session_state.thread_id       = str(_uuid.uuid4())
+        st.session_state.thread_id       = str(uuid.uuid4())
         st.session_state.awaiting_clarification = False
         st.session_state.clarification_type     = None
         st.rerun()
@@ -128,7 +127,6 @@ def update_cost_tracker(token_usage: dict):
     """Add token counts from one exchange to the running session totals."""
     if not token_usage:
         return
-    from config import TOKEN_COSTS
     st.session_state.total_input_tokens  += token_usage.get("input_tokens",  0)
     st.session_state.total_output_tokens += token_usage.get("output_tokens", 0)
     input_cost  = (token_usage.get("input_tokens",  0) / 1000) * TOKEN_COSTS["input"]

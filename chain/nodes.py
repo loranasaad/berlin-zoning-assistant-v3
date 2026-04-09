@@ -52,6 +52,8 @@ def set_vector_store(vs) -> None:
 # --- Pydantic schemas for trustcall extractors ---
 
 class QueryClassification(BaseModel):
+    """Classify the user query and extract relevant parameters for routing."""
+
     query_type: Literal["regulation", "address", "direct"] = Field(
         description=(
             "regulation = BauNVO/law/setback/zone-definition question requiring document search. "
