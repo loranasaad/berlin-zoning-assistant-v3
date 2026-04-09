@@ -228,8 +228,10 @@ def _render_sources_tab(source_chunks: list, s: dict):
 		source = chunk.metadata.get("source", "Unknown")
 		page = chunk.metadata.get("page", "")
 		page_info = f" — {s['sources_page']} {page + 1}" if page != "" else ""
-		with st.expander(f"{i}. {source}{page_info}"):
-			st.caption(chunk.page_content)
+		st.markdown(f"**{i}. {source}{page_info}**")
+		st.caption(chunk.page_content)
+		if i < len(source_chunks):
+			st.divider()
 
 def _translate_tool_error(output: dict, language: str) -> str:
 	"""
