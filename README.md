@@ -1,5 +1,7 @@
 # 🏗️ Berlin Zoning Assistant
 
+**Live app:** [zoning-v3.loranasaad.com](https://zoning-v3.loranasaad.com)
+
 An AI agent for architects, developers, and planners who need faster answers about Berlin zoning, building rules, and planning constraints. Enter a Berlin address to generate a structured zoning report with parcel context, buildability estimates, parking requirements, construction cost estimates, demographics, and regulation-grounded explanations.
 
 ![LangGraph architecture](data/graph.png)
