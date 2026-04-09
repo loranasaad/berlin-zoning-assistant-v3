@@ -161,10 +161,12 @@ def route_query(state: AgentState) -> dict:
     })
     classification: QueryClassification = result["responses"][0]
 
-    tools_needed = classification.tools_needed
-    # If LLM classified as "address" but forgot to list tools, default to all four.
-    if classification.query_type == "address" and not tools_needed:
+    # Always run all four tools for address queries — UI renders all four sections
+    # and partial results leave construction_cost/demographics cards empty.
+    if classification.query_type == "address":
         tools_needed = ["buildable_area", "parking", "construction_cost", "demographics"]
+    else:
+        tools_needed = classification.tools_needed
 
     return {
         "query_type":   classification.query_type,

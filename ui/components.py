@@ -71,7 +71,7 @@ def render_technical_details(
 			_render_sources_tab(source_chunks, s)
 		
 		with tabs["debug"]:
-			_render_debug_tab(tool_calls, s)
+			_render_debug_tab(tool_calls, s, zoning_report=zoning_report)
 
 # ----------------
 # Internal helpers
@@ -244,10 +244,28 @@ def _translate_tool_error(output: dict, language: str) -> str:
 			return template.format(**params)
 	return output.get("error", str(output))
 
-def _render_debug_tab(tool_calls: list, s: dict, language: str = "en"):
+def _render_debug_tab(tool_calls: list, s: dict, language: str = "en", zoning_report: dict | None = None):
 	"""Render the debug view showing raw tool inputs and outputs."""
 	if not tool_calls:
-		st.caption(s["no_tools"])
+		if zoning_report and zoning_report.get("status") == "complete":
+			# Sprint 3: tool results come from parallel LangGraph nodes, not LLM tool calls.
+			# Show each node's output from the zoning_report.
+			_SPRINT3_SECTIONS = [
+				("buildable_area",    "🏗️ run_buildable_area"),
+				("parking",           "🚲 run_parking"),
+				("construction_cost", "💰 run_construction_cost"),
+				("demographics",      "👥 run_demographics"),
+				("zone",              "🗺️ Zone (FIS-Broker)"),
+				("plot",              "📐 Plot (ALKIS)"),
+				("coordinates",       "📍 Coordinates"),
+			]
+			for key, label in _SPRINT3_SECTIONS:
+				val = zoning_report.get(key)
+				if val is not None:
+					st.markdown(f"**{label}**")
+					st.json(val)
+		else:
+			st.caption(s["no_tools"])
 		return
 	for i, tc in enumerate(tool_calls, 1):
 		st.markdown(f"**{i}. `{tc['tool']}`**")
