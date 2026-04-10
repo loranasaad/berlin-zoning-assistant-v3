@@ -171,11 +171,13 @@ def retrieve_rag(state: AgentState) -> dict:
 
     last_message = state["messages"][-1].content
     language     = state.get("language", "de")
+    provider     = state.get("llm_provider", DEFAULT_LLM_PROVIDER)
 
     context, chunks, usage = retrieve_and_format(
         query=last_message,
         vector_store=_vector_store,
         language=language,
+        llm_provider=provider,
     )
 
     return {

@@ -26,10 +26,9 @@ LANGUAGES = {
 DEFAULT_LANGUAGE = "de"
 
 # Models
-ANTHROPIC_MODEL_ID  = "claude-sonnet-4-6"
-OPENAI_MODEL_ID     = "gpt-5.2"
+ANTHROPIC_MODEL_ID   = "claude-sonnet-4-6"
+OPENAI_MODEL_ID      = "gpt-5.2"
 OPENAI_MODEL_ID_MINI = "gpt-4.1-mini"
-MODEL_ID            = ANTHROPIC_MODEL_ID   # backward-compat alias for rag/retriever.py
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 

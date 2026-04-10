@@ -1,9 +1,9 @@
 import logging
 from langchain_chroma import Chroma
-from langchain_anthropic import ChatAnthropic
 from langchain_core.documents import Document
 from rag.embeddings import get_or_create_vector_store
-from config import ANTHROPIC_API_KEY, MODEL_ID, TOP_K_RESULTS
+from chain.llm import get_llm
+from config import TOP_K_RESULTS
 from ui.strings import RETRIEVER_STRINGS
 from chain.prompts import CLASSIFIER_SYSTEM
 
@@ -13,12 +13,13 @@ def retrieve_and_format(
 		query: str,
 		vector_store: Chroma = None,
 		language: str = "de",
+		llm_provider: str = "openai",
 ) -> tuple[str, list[Document], dict]:
 	total_input  = 0
 	total_output = 0
 
 	# Classify before retrieving — skip RAG entirely for tool queries
-	category, classifier_usage = _classify_query(query)
+	category, classifier_usage = _classify_query(query, llm_provider)
 	total_input  += classifier_usage["input_tokens"]
 	total_output += classifier_usage["output_tokens"]
 
@@ -28,7 +29,7 @@ def retrieve_and_format(
 
 	# Translation only runs for English regulation queries
 	if language == "en":
-		retrieval_query, translation_usage = _translate_to_german(query)
+		retrieval_query, translation_usage = _translate_to_german(query, llm_provider)
 		total_input  += translation_usage["input_tokens"]
 		total_output += translation_usage["output_tokens"]
 	else:
@@ -43,14 +44,9 @@ def retrieve_and_format(
 # Classifies query as "regulation" or "tool" before deciding whether to run RAG.
 # "tool" queries skip retrieval entirely — saves ~3,000 input tokens + one embedding call.
 # Falls back to "regulation" on any error so retrieval always runs as safe default.
-def _classify_query(query: str) -> tuple[str, dict]:
+def _classify_query(query: str, llm_provider: str = "openai") -> tuple[str, dict]:
 	try:
-		llm = ChatAnthropic(
-			model=MODEL_ID,
-			anthropic_api_key=ANTHROPIC_API_KEY,
-			temperature=0,
-			max_tokens=5,
-		)
+		llm = get_llm(llm_provider).bind(max_tokens=5)
 		response = llm.invoke([
 			{"role": "system", "content": CLASSIFIER_SYSTEM},
 			{"role": "user",   "content": query},
@@ -66,7 +62,7 @@ def _classify_query(query: str) -> tuple[str, dict]:
 		return "regulation", {"input_tokens": 0, "output_tokens": 0}
 
 # Translate English queries to German before embedding
-def _translate_to_german(query: str) -> tuple[str, dict]:
+def _translate_to_german(query: str, llm_provider: str = "openai") -> tuple[str, dict]:
 	"""
 	Translate an English query to German before embedding.
 	The knowledge base documents are in German, so translating the query
@@ -75,12 +71,7 @@ def _translate_to_german(query: str) -> tuple[str, dict]:
 	Falls back to the original query if translation fails so it never breaks the app.
 	"""
 	try:
-		llm = ChatAnthropic(
-			model=MODEL_ID,
-			anthropic_api_key=ANTHROPIC_API_KEY,
-			temperature=0,
-			max_tokens=500,
-		)
+		llm = get_llm(llm_provider).bind(max_tokens=500)
 		response = llm.invoke(
 			"Translate the following query into German legal and regulatory language, "
 			"as it would appear in a German building code or zoning ordinance. "
